@@ -1,0 +1,311 @@
+---
+title: "ICP Individual Assignment 1"
+author: "Levi Latoz"
+date: "2024-01-13"
+knitr::opts_chunk$set(error = TRUE)
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+final
+
+# *2. Australian Climate Data Analysis*
+
+```{r}
+perth_csv <- read.csv("indiv1_perth_airport.csv")
+```
+
+
+**(a)** The rainiest month of the 1981 - 2010 time period was July.
+
+```{r}
+library(tidyverse)
+clean_perth <- perth_csv |> 
+  separate(DATE, into = c("Year", "Month"), sep = "-")
+
+clean_perth_prec <- clean_perth |>
+  select(Year, Month, PRCP) |>
+  filter(Year >= 1981 & Year <= 2010)
+  
+clean_perth_prec |>
+  select(Month, PRCP) |>
+  group_by(Month) |>
+  summarize(Average_PRCP = mean(PRCP)) |>
+  ggplot(aes(x = Month, y = Average_PRCP)) +
+  geom_col()
+```
+
+*(b)*
+Initial Hypothesis: Though relatively stable, there seems to have been a slight decrease in the amount of rainfall being experienced in Perth during the month of July from 1944 till 2020.
+
+Prompt asks for a test on whether the two periods, 1951-1980 and 1981-2010, had statistically different experiences of rainfall in Perth. To test, a paired sample T-test will be used.
+
+Viewing the statistical test results, the p-value being greater than 0.05 means that we don't observe a significant difference from the the norm. So although we observe a slight decrease in the amount of rainfall visually, our test indicates that this deviation is not statistically significant or out of the realm of possibility.
+
+```{r}
+# creating scatterplot with trend line
+perth_july_rain <- clean_perth |>
+  select(Year, Month, PRCP) |>
+  filter(Month == "07") 
+
+perth_july_rain$Year <- as.numeric(perth_july_rain$Year)
+perth_july_rain$PRCP <- as.numeric(perth_july_rain$PRCP)
+
+
+ggplot(data = perth_july_rain, aes(x = Year, y = PRCP)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+
+```{r}
+#setting up paired sample t-test
+
+#add new variable to indicate period
+perth_july_rain$Period <- ifelse(perth_july_rain$Year >= 1981, "Later", "Earlier")
+
+#filter out pre-1951 and post-2010
+fltr_perth_july_rain <- perth_july_rain |>
+  filter(Year >= 1951, Year <= 2010)
+
+#separate into two datasets
+earlier_july <- fltr_perth_july_rain |>
+  filter(Period == "Earlier") 
+
+later_july <- fltr_perth_july_rain |>
+  filter(Period == "Later") 
+
+#run test
+t.test(earlier_july$PRCP, later_july$PRCP, paired = TRUE)
+
+```
+
+
+*(c)* Graphic suggests a decreasing amount of average rainfall experienced in Perth Winter Months since 1941. 
+
+Our statistical test suggests that their is a statistically significant precipitation change that occurred between our two time period groups. This is suggested by the p-value (0.001891), which indicates that the observed change is statistically significant and unlikely to occur organically given prior trends.
+
+```{r}
+#new dataset
+winter_perth_PRCP <- clean_perth |>
+  select(Year, Month, PRCP) 
+
+#change to numeric for interpretation
+winter_perth_PRCP$Year <- as.numeric(winter_perth_PRCP$Year)
+winter_perth_PRCP$Month <- as.numeric(winter_perth_PRCP$Month)
+winter_perth_PRCP$PRCP <- as.numeric(winter_perth_PRCP$PRCP)
+
+#filter to winter months
+winter_perth_PRCP <- winter_perth_PRCP |>
+  filter(Month == c(05, 06, 07, 08))
+
+#create variables and plot
+summary_winter_perth <- winter_perth_PRCP |>
+  group_by(Year) |>
+  summarize(Avr_PRCP = mean(PRCP))
+
+summary_winter_perth |>
+  ggplot(aes(x = Year, y = Avr_PRCP)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Average Winter Rainfall in Perth, 1941 - 2019", x= "Year", y = "Average Precipitation")
+
+```
+
+```{r}
+#use two-sample paired t-test on new data
+
+#setting up paired sample t-test
+
+#add new variable to indicate period
+summary_winter_perth$Period <- ifelse(summary_winter_perth$Year >= 1981, "Later", "Earlier")
+
+#filter out pre-1951 and post-2010
+fltr_summary_wntr_perth <- summary_winter_perth |>
+  filter(Year >= 1951, Year <= 2010)
+
+#separate into two datasets
+earlier_winter <- fltr_summary_wntr_perth |>
+  filter(Period == "Earlier") 
+
+later_winter <- fltr_summary_wntr_perth |>
+  filter(Period == "Later") 
+
+#run test
+t.test(earlier_winter$Avr_PRCP, later_winter$Avr_PRCP, paired = TRUE)
+```
+
+
+# *3. Climate Change and Inequality*
+
+
+```{r}
+us_counties_temp <- read.csv("indiv1_us_counties_temperature.csv")
+us_counties_income <- read.csv("indiv1_us_counties_incomes.csv")
+```
+
+*(a)* Description of plot: The plot suggests that the overall average temperature across the US will increase across the board.
+
+```{r}
+us_counties_temp |>
+  ggplot() +
+  geom_histogram(aes(x = normal_1981_2010, fill = "normal_1981_2010"), alpha = 0.5) +
+  geom_histogram(aes(x = rcp85_2080_2099, fill = "rcp85_2080_2099"), alpha = 0.5) +
+  scale_fill_manual(values = c("normal_1981_2010" = "blue", "rcp85_2080_2099" = "yellow")) +
+  labs(y = "# of Counties w/ Avg Temp", x = "Average Temperature", title = "Distribution of Avg Temperatures Across US Counties", subtitle = "1981-2010 and 2080-2099(projected)")
+```
+
+*(b)*
+
+```{r}
+#housekeeping
+us_counties_income$income_per_capita_2018 <- as.numeric(us_counties_income$income_per_capita_2018)
+
+#identifies decile ranges
+quantile(us_counties_income$income_per_capita_2018, probs = seq(0, 1, 0.1))
+
+# assigned deciles (might need to adjust terminology)
+us_county_inc_dec <- us_counties_income |>
+  mutate(
+    income_dec = ifelse(income_per_capita_2018 >= 57138.4, "100", 
+                        ifelse(income_per_capita_2018 >= 50751.4, "90", 
+                               ifelse(income_per_capita_2018 >= 47028.9, "80", 
+                                      ifelse(income_per_capita_2018 >= 44230.0, "70", 
+                                             ifelse(income_per_capita_2018 >= 41974.0, "60", 
+                                                    ifelse(income_per_capita_2018 >= 39828.4, "50", 
+                                                           ifelse(income_per_capita_2018 >= 37650.2, "40", 
+                                                                  ifelse(income_per_capita_2018 >= 35249.6, "30",
+                                                                         ifelse(income_per_capita_2018 >= 32622.3, "20", 
+                                                                                ifelse(income_per_capita_2018 >= 18541.0, "10", "NA"))))))))))
+  )
+
+# combine datasets
+
+mrgd_income_temp <- merge(us_county_inc_dec, us_counties_temp, by = "fips")
+
+# clean merged data and create table with average temps by decile per time period
+income_dec_temp_tbl <- mrgd_income_temp |>
+  select(fips, income_dec, normal_1981_2010, rcp85_2020_2039, rcp85_2040_2059, rcp85_2080_2099) |>
+  group_by(income_dec) |>
+  summarize(Avg_1981_2010 = mean(normal_1981_2010), 
+            Avg_2020_2039 = mean(rcp85_2020_2039), 
+            Avg_2040_2059 = mean(rcp85_2040_2059), 
+            Avg_2080_2099 = mean(rcp85_2080_2099)) 
+#
+income_dec_temp_tbl
+
+
+```
+
+*(c)*
+
+```{r}
+income_dec_temp_pivot <- income_dec_temp_tbl |>
+  pivot_longer(cols = starts_with("Avg"), names_to = "Period", values_to = "Avg_Temp") 
+
+income_dec_temp_pivot$income_dec <- as.numeric(income_dec_temp_pivot$income_dec)
+
+income_dec_temp_pivot |>
+  filter(Period == "Avg_1981_2010" | Period == "Avg_2080_2099") |>
+  ggplot(aes(x = income_dec, y = Avg_Temp, fill = Avg_Temp)) + 
+  geom_col() +
+  scale_fill_continuous(low="green", high="red", limits=c(10,21)) +
+  facet_wrap(vars(Period)) +
+  labs(title = "Avg Temps Experienced Across Income Deciles", x = "Income Deciles", y = "Average Temperature (C)", subtitle = "US County Level Data")
+ 
+  
+```
+
+*(d)* The plots indicate that average temperature will increase across the board, impacting all income deciles to some extent.  That being said, the plot also highlights that lower income decile groups will be the most severely impacted by these rise in average temperature. This implies that the lowest income groups are most vulnerable to the impacts of climate change as they relate specifically to temparature levels.
+
+*(e)* The top half of income deciles will experience the largest change in average temperature, with the 80 and 90 deciles projecting to have the largest increase.  Also noting the "lat" variable as it relates to income deciles and temperature change, the mean lat suggests that higher income deciles tend to be concentrated closer to the 40th lat in the US, with the lat variable following the same trend as the income deciles variable. With that in mind, our data suggests that temperature change increases will be increasingly worse the closer you are to the 40th lat.
+
+```{r}
+mrgd_income_temp$income_dec <- as.numeric(mrgd_income_temp$income_dec)
+
+county_temp_change_tbl <- mrgd_income_temp |>
+  select(fips, lat, income_dec, normal_1981_2010, rcp85_2080_2099) |>
+  group_by(fips) |>
+  summarize(temp_change = rcp85_2080_2099 - normal_1981_2010, 
+            income_dec = income_dec,
+            lat = lat) |>
+  group_by(income_dec) |>
+  summarize(mean(temp_change),
+            mean(lat)) 
+county_temp_change_tbl
+```
+
+```{r}
+county_temp_change_tbl |>
+  ggplot(aes(x = `mean(temp_change)`, y = `mean(lat)`)) +
+  geom_line() +
+  labs(title = "Relationship between Lat and Average Temp Change", subtitle = "US County Level Data", x = "Average Lat", y = "Average Temperature Change")
+```
+
+*(f)* As a policy maker viewing these trends, the main points that stick out are the declining precipitation rates and increasing temperature levels across the US. The country is trending towards being much drier over the next decade, so one emphasis would be improving water management and conservation efforts at the county level to lessen the impacts of droughts on localities. Additionally, though taxes aren't popular across the board, highlighting these projections to constituents might grant enough credibility for policy makers put taxes on commercial water use to help internalize the cost and discourage the over consumption of it in production-related uses. Doing so might slightly lessen the impact of declining water levels for consumer level use.
+
+
+# *4. Climate Change Communication*
+
+
+```{r}
+indiv_gmst_monthly <- read.csv("indiv1_gmst_monthly.csv")
+
+clean_ind_gmst_monthly <- indiv_gmst_monthly |>
+  separate(Year, into = c("Year", "Month"), sep = 4)
+
+
+```
+
+*(a)* Recreate Change in global surface temperature graphic from Climate Change Crash Course Slides: 
+
+```{r}
+clean_ind_gmst_monthly |>
+  group_by(Year) |>
+  summarize(Temp_Change = mean(Anomaly)) |>
+  ggplot(aes(x = Year, y = Temp_Change, group = 1)) +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1850, 2020, by = 15))
+
+```
+
+*(b)* 
+
+-   1) Stable trend up until 1940, where a noticeable upward trend begins. Post WWII boom. 
+
+-   2) Prior to 1940, deviations tended to regress back to the norm relatively soon. This trend was broken post 1940.
+
+-   3) There were humongous jumps in average temperature change from 1930-1940 and 2010-2015.
+
+
+*(c)*
+
+The Climate Spiral
+
+- It emphasizes changes experienced by month, which can be more relatable for people. An average temperature across a year is harder to comprehend, as it is such a broad figure. Showing temperature change by month helps people internalize how temperature used to be compared to now, particularly during years where they were alive and can think back too.
+- The 3-D component at the end is also impactful.The height change and width expansion drives home the significance of temperature change to the average viewer.
+
+The Climate Stripes
+
+- Removing numbers and graphs simplifies the graphic, making it much less intimidating for the average, possibly non-scientific person.
+
+- The color scheme of blue to red is an effective tool that plays off of a person's inherent biases to relay that their is an issue. The stark contrast near the end (right side) emphasizes that this is not normal given past trends.
+
+*(d)* I wonder if it could benefit from some graphic designing over-layed over the original graph. As policy makers concerned with climate, major climate events come to the front of our mind when we see jumps in the graph. For the casual viewer, this may not be the case. This mismatch might be solved by simply including small graphics or maybe even digital art of smoke towers, military planes, and other contributors as a part of the graph's design.
+
+```{r}
+clean_ind_gmst_monthly |>
+  group_by(Year) |>
+  summarize(Temp_Change = mean(Anomaly)) |>
+  ggplot(aes(x = Year, y = Temp_Change, group = 1)) +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1850, 2020, by = 15))
+
+```
+
